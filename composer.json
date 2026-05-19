@@ -1,0 +1,39 @@
+{
+  "name": "ernestdefoe/github-release-bot",
+  "description": "Listens for GitHub release webhooks and posts a reply to a configured discussion thread.",
+  "keywords": ["flarum", "flarum-extension", "github", "webhook", "release", "automation"],
+  "type": "flarum-extension",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "ernestdefoe",
+      "email": "ernestdefoe@gmail.com"
+    }
+  ],
+  "homepage": "https://github.com/ernestdefoe/github-release-bot",
+  "support": {
+    "issues": "https://github.com/ernestdefoe/github-release-bot/issues",
+    "source": "https://github.com/ernestdefoe/github-release-bot"
+  },
+  "require": {
+    "php": "^8.3",
+    "flarum/core": "^2.0",
+    "ext-json": "*"
+  },
+  "autoload": {
+    "psr-4": {
+      "ErnestDefoe\\GitHubReleaseBot\\": "src/"
+    }
+  },
+  "extra": {
+    "flarum-extension": {
+      "title": "GitHub Release Bot",
+      "category": "feature",
+      "icon": {
+        "name": "fab fa-github",
+        "backgroundColor": "#24292e",
+        "color": "#ffffff"
+      }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+/vendor
+js/dist
+js/node_modules
+.idea
+.vscode
+.DS_Store

@@ -1,0 +1,9 @@
+ernestdefoe-github-release-bot:
+  admin:
+    settings:
+      webhook_secret_label: "GitHub Webhook Secret"
+      webhook_secret_help: "Shared HMAC secret. Paste this same value into every GitHub repo's webhook configuration."
+      bot_user_id_label: "Bot User ID"
+      bot_user_id_help: "Flarum user ID that will author the release replies (typically your admin account — usually 1)."
+      repo_map_label: "Repository → Discussion Map"
+      repo_map_help: "JSON object mapping GitHub repo name to discussion ID. Example: {\"mosaic\":42,\"recruiting\":43}"
