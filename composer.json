@@ -25,6 +25,8 @@
       "ErnestDefoe\\GitHubReleaseBot\\": "src/"
     }
   },
+  "minimum-stability": "beta",
+  "prefer-stable": true,
   "extra": {
     "flarum-extension": {
       "title": "GitHub Release Bot",

@@ -1,4 +1,4 @@
-import { Admin } from 'flarum/common/extenders';
+import Admin from 'flarum/common/extenders/Admin';
 
 export default [
   new Admin()
