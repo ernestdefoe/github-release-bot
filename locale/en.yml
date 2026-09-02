@@ -7,3 +7,7 @@ ernestdefoe-github-release-bot:
       bot_user_id_help: "Flarum user ID that will author the release replies (typically your admin account — usually 1)."
       repo_map_label: "Repository → Discussion Map"
       repo_map_help: "JSON object mapping GitHub repo name to discussion ID. Example: {\"mosaic\":42,\"recruiting\":43}"
+      watch_map_label: "Watched Repositories → Discussion Map"
+      watch_map_help: "For repositories you do NOT own. Use the full owner/repo path. A newly added repository is adopted silently, so adding one never dumps old releases into a discussion."
+      api_token_label: "GitHub Token (optional)"
+      api_token_help: "Only needed for a long watch list. Detection uses public feeds and never touches the API rate limit."
