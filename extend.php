@@ -11,7 +11,7 @@ return [
     (new Extend\Csrf())
         ->exemptRoute('ernestdefoe.github-release-bot.webhook'),
 
-    (new Extend\Locales(__DIR__.'/locale')),
+    new Extend\Locales(__DIR__.'/locale'),
 
     /*
      * Watch mode: announce releases from repositories we do NOT own.
