@@ -25,7 +25,7 @@ return [
      */
     (new Extend\Console())
         ->command(PollCommand::class)
-        ->schedule('github-release-bot:poll', function ($event) {
+        ->schedule(PollCommand::class, function ($event) {
             $event->everyThirtyMinutes()->withoutOverlapping();
         }),
 
