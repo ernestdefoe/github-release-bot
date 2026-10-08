@@ -3,3 +3,6 @@ js/node_modules
 .idea
 .vscode
 .DS_Store
+/composer.lock
+.phpunit.result.cache
+/tests/integration/tmp
