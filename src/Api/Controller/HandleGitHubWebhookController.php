@@ -21,13 +21,14 @@ class HandleGitHubWebhookController implements RequestHandlerInterface
         protected SettingsRepositoryInterface $settings,
         protected UserRepository $users,
         protected LoggerInterface $log,
-    ) {}
+    ) {
+    }
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        $secret    = (string) $this->settings->get('ernestdefoe-github-release-bot.webhook_secret');
-        $botUserId = (int)    $this->settings->get('ernestdefoe-github-release-bot.bot_user_id');
-        $mapJson   = (string) $this->settings->get('ernestdefoe-github-release-bot.repo_map');
+        $secret = (string) $this->settings->get('ernestdefoe-github-release-bot.webhook_secret');
+        $botUserId = (int) $this->settings->get('ernestdefoe-github-release-bot.bot_user_id');
+        $mapJson = (string) $this->settings->get('ernestdefoe-github-release-bot.repo_map');
 
         if ($secret === '' || $botUserId <= 0 || $mapJson === '') {
             return new JsonResponse(['error' => 'not_configured'], 503);
@@ -36,7 +37,7 @@ class HandleGitHubWebhookController implements RequestHandlerInterface
         // Read raw body for signature verification (must be byte-for-byte
         // identical to what GitHub signed, so do this before any parsing).
         $body = (string) $request->getBody();
-        $sig  = $request->getHeaderLine('X-Hub-Signature-256');
+        $sig = $request->getHeaderLine('X-Hub-Signature-256');
 
         $expected = 'sha256='.hash_hmac('sha256', $body, $secret);
         if (! hash_equals($expected, $sig)) {
@@ -57,7 +58,7 @@ class HandleGitHubWebhookController implements RequestHandlerInterface
         }
 
         $repoName = $payload['repository']['name'] ?? null;
-        $release  = $payload['release'] ?? [];
+        $release = $payload['release'] ?? [];
 
         $map = json_decode($mapJson, true);
         if (! is_array($map) || ! $repoName || ! isset($map[$repoName])) {
@@ -72,9 +73,9 @@ class HandleGitHubWebhookController implements RequestHandlerInterface
             return new JsonResponse(['error' => 'bot_user_not_found', 'user_id' => $botUserId], 503);
         }
 
-        $tag   = (string) ($release['tag_name'] ?? '');
+        $tag = (string) ($release['tag_name'] ?? '');
         $notes = trim((string) ($release['body'] ?? ''));
-        $url   = (string) ($release['html_url'] ?? '');
+        $url = (string) ($release['html_url'] ?? '');
 
         if ($notes === '') {
             $notes = '_No release notes provided._';
@@ -94,10 +95,10 @@ class HandleGitHubWebhookController implements RequestHandlerInterface
             // counts are bumped by DiscussionMetadataUpdater on the Posted event.
             $post = new CommentPost();
             $post->setContentAttribute($content, $bot);
-            $post->created_at    = Carbon::now();
-            $post->user_id       = $bot->id;
+            $post->created_at = Carbon::now();
+            $post->user_id = $bot->id;
             $post->discussion_id = $discussion->id;
-            $post->ip_address    = $request->getServerParams()['REMOTE_ADDR'] ?? null;
+            $post->ip_address = $request->getServerParams()['REMOTE_ADDR'] ?? null;
             $post->save();
 
             // Posted-event listeners that normally refresh discussion stats don't
@@ -111,9 +112,9 @@ class HandleGitHubWebhookController implements RequestHandlerInterface
             return new JsonResponse(['error' => 'discussion_not_found', 'discussion_id' => $discussionId], 500);
         } catch (Throwable $e) {
             $this->log->warning('[github-release-bot] post failed', [
-                'repo'          => $repoName,
+                'repo' => $repoName,
                 'discussion_id' => $discussionId,
-                'error'         => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
 
             return new JsonResponse(['error' => 'post_failed', 'message' => $e->getMessage()], 500);

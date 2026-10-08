@@ -55,10 +55,10 @@ class ReleasePoster
         // counts are bumped by DiscussionMetadataUpdater on the Posted event.
         $post = new CommentPost();
         $post->setContentAttribute($content, $bot);
-        $post->created_at    = Carbon::now();
-        $post->user_id       = $bot->id;
+        $post->created_at = Carbon::now();
+        $post->user_id = $bot->id;
         $post->discussion_id = $discussion->id;
-        $post->ip_address    = $ip;
+        $post->ip_address = $ip;
         $post->save();
 
         // Posted-event listeners that normally refresh discussion stats don't

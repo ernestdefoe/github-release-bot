@@ -6,7 +6,7 @@ use ErnestDefoe\GitHubReleaseBot\Watcher;
 use Flarum\Console\AbstractCommand;
 
 /**
- * php flarum github-release-bot:poll
+ * php flarum github-release-bot:poll.
  *
  * 🚨 configure() + setName(), NOT a $signature property.
  *

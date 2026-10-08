@@ -33,7 +33,7 @@ use Throwable;
 class Watcher
 {
     private const FEED = 'https://github.com/%s/releases.atom';
-    private const API  = 'https://api.github.com/repos/%s/releases/tags/%s';
+    private const API = 'https://api.github.com/repos/%s/releases/tags/%s';
 
     public function __construct(
         protected ConnectionInterface $db,
@@ -56,9 +56,9 @@ class Watcher
         }
 
         $client = new Client([
-            'timeout'         => 15,
+            'timeout' => 15,
             'connect_timeout' => 8,
-            'headers'         => [
+            'headers' => [
                 // GitHub asks for an identifying agent and rejects requests without one.
                 'User-Agent' => 'flarum-github-release-bot',
             ],
@@ -105,6 +105,7 @@ class Watcher
             // A repository with no releases at all is not an error; it may get
             // one later. Record the check so the row exists and stays fresh.
             $this->touch($repo, null, null);
+
             return;
         }
 
@@ -122,16 +123,19 @@ class Watcher
             $this->touch($repo, $latest['id'], $latest['tag'], posted: false);
             $result['adopted']++;
             $result['details'][] = "{$repo}: now watching from {$latest['tag']} (nothing posted)";
+
             return;
         }
 
         if (($seen->last_release_id ?? null) === $latest['id']) {
             $this->touch($repo, $latest['id'], $latest['tag']);
+
             return;
         }
 
         if ($dryRun) {
             $result['details'][] = "{$repo}: WOULD post {$latest['tag']} to discussion {$discussionId}";
+
             return;
         }
 
@@ -172,7 +176,7 @@ class Watcher
         }
 
         $entry = $feed->entry[0];
-        $id    = trim((string) $entry->id);
+        $id = trim((string) $entry->id);
 
         if ($id === '') {
             return null;
@@ -241,10 +245,10 @@ class Watcher
     {
         $row = [
             'last_release_id' => $id,
-            'last_tag'        => $tag,
+            'last_tag' => $tag,
             'last_checked_at' => Carbon::now(),
-            'failures'        => 0,
-            'last_error'      => null,
+            'failures' => 0,
+            'last_error' => null,
         ];
 
         if ($posted) {
@@ -260,8 +264,8 @@ class Watcher
 
         $this->db->table('github_release_bot_seen')->updateOrInsert(['repo' => $repo], [
             'last_checked_at' => Carbon::now(),
-            'failures'        => (int) ($existing->failures ?? 0) + 1,
-            'last_error'      => mb_substr($message, 0, 255),
+            'failures' => (int) ($existing->failures ?? 0) + 1,
+            'last_error' => mb_substr($message, 0, 255),
         ]);
     }
 }
