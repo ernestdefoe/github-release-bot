@@ -4,6 +4,7 @@ namespace ErnestDefoe\GitHubReleaseBot\Api\Controller;
 
 use Carbon\Carbon;
 use Flarum\Discussion\Discussion;
+use Flarum\Locale\TranslatorInterface;
 use Flarum\Post\CommentPost;
 use Flarum\Settings\SettingsRepositoryInterface;
 use Flarum\User\UserRepository;
@@ -21,6 +22,7 @@ class HandleGitHubWebhookController implements RequestHandlerInterface
         protected SettingsRepositoryInterface $settings,
         protected UserRepository $users,
         protected LoggerInterface $log,
+        protected TranslatorInterface $translator,
     ) {
     }
 
@@ -78,13 +80,13 @@ class HandleGitHubWebhookController implements RequestHandlerInterface
         $url = (string) ($release['html_url'] ?? '');
 
         if ($notes === '') {
-            $notes = '_No release notes provided._';
+            $notes = $this->translator->trans('ernestdefoe-github-release-bot.forum.post.no_notes');
         }
 
         $heading = trim("{$repoName} {$tag}");
         $content = "## {$heading}\n\n{$notes}";
         if ($url !== '') {
-            $content .= "\n\n[View release on GitHub]({$url})";
+            $content .= "\n\n[".$this->translator->trans('ernestdefoe-github-release-bot.forum.post.view_release')."]({$url})";
         }
 
         try {

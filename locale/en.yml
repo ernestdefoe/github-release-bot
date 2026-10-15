@@ -3,11 +3,17 @@ ernestdefoe-github-release-bot:
     settings:
       webhook_secret_label: "GitHub Webhook Secret"
       webhook_secret_help: "Shared HMAC secret. Paste this same value into every GitHub repo's webhook configuration."
+      webhook_secret_placeholder: "long random string (e.g. 64 hex chars from `openssl rand -hex 32`)"
       bot_user_id_label: "Bot User ID"
       bot_user_id_help: "Flarum user ID that will author the release replies (typically your admin account — usually 1)."
-      repo_map_label: "Repository → Discussion Map"
-      repo_map_help: "JSON object mapping GitHub repo name to discussion ID. Example: {\"mosaic\":42,\"recruiting\":43}"
-      watch_map_label: "Watched Repositories → Discussion Map"
-      watch_map_help: "For repositories you do NOT own. Use the full owner/repo path. A newly added repository is adopted silently, so adding one never dumps old releases into a discussion."
+      repo_map_label: "Repository → Discussion Map (your own repos, via webhook)"
+      repo_map_help: "JSON object mapping GitHub repo name to discussion ID. Example: '{\"mosaic\":42,\"recruiting\":43}'"
+      watch_map_label: "Watched Repositories → Discussion Map (anyone's repos, checked every 30 min)"
+      watch_map_help: "For repositories you do NOT own, where you cannot add a webhook. Use the full owner/repo path. Example: '{\"flarum/framework\":50,\"fof/upload\":51}'. A newly added repository is adopted silently — its current release is recorded and nothing is posted, so adding one never dumps old releases into a discussion. Only releases published after that are announced."
       api_token_label: "GitHub Token (optional)"
-      api_token_help: "Only needed for a long watch list. Detection uses public feeds and never touches the API rate limit."
+      api_token_help: "Only needed for a long watch list. Release detection uses public feeds and never touches the API rate limit; a token is used solely to fetch release notes, and the unauthenticated limit of 60/hour is plenty for occasional releases. A read-only token with no scopes is enough."
+      api_token_placeholder: "ghp_… (leave blank unless you hit rate limits)"
+  forum:
+    post:
+      no_notes: "_No release notes provided._"
+      view_release: "View release on GitHub"

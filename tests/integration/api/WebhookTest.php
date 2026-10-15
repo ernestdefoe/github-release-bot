@@ -114,7 +114,12 @@ class WebhookTest extends TestCase
     {
         $this->deliver('release', $this->release('ridge', 'published', '   '));
 
-        $this->assertStringContainsString('No release notes provided.', $this->database()->table('posts')->where('discussion_id', 1)->where('number', 2)->value('content'));
+        // Through the translator: the English text on a real forum, the key in
+        // this harness, which does not load extension locale files.
+        $this->assertMatchesRegularExpression(
+            '/No release notes provided\.|ernestdefoe-github-release-bot\.forum\.post\.no_notes/',
+            $this->database()->table('posts')->where('discussion_id', 1)->where('number', 2)->value('content')
+        );
     }
 
     #[Test]

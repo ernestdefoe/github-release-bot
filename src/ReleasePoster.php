@@ -4,6 +4,7 @@ namespace ErnestDefoe\GitHubReleaseBot;
 
 use Carbon\Carbon;
 use Flarum\Discussion\Discussion;
+use Flarum\Locale\TranslatorInterface;
 use Flarum\Post\CommentPost;
 use Flarum\User\User;
 use Flarum\User\UserRepository;
@@ -19,7 +20,8 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 class ReleasePoster
 {
     public function __construct(
-        protected UserRepository $users
+        protected UserRepository $users,
+        protected TranslatorInterface $translator
     ) {
     }
 
@@ -42,13 +44,13 @@ class ReleasePoster
         $notes = trim($notes);
 
         if ($notes === '') {
-            $notes = '_No release notes provided._';
+            $notes = $this->translator->trans('ernestdefoe-github-release-bot.forum.post.no_notes');
         }
 
         $content = "## {$heading}\n\n{$notes}";
 
         if ($url !== '') {
-            $content .= "\n\n[View release on GitHub]({$url})";
+            $content .= "\n\n[".$this->translator->trans('ernestdefoe-github-release-bot.forum.post.view_release')."]({$url})";
         }
 
         // type + number are auto-assigned by Post::boot(); last_post / comment
