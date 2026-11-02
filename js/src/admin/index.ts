@@ -9,7 +9,7 @@ export default [
       setting: 'ernestdefoe-github-release-bot.webhook_secret',
       label: t('webhook_secret_label'),
       help: t('webhook_secret_help'),
-      type: 'text',
+      type: 'password',
       placeholder: t('webhook_secret_placeholder'),
     }))
     .setting(() => ({
@@ -38,7 +38,7 @@ export default [
       setting: 'ernestdefoe-github-release-bot.api_token',
       label: t('api_token_label'),
       help: t('api_token_help'),
-      type: 'text',
+      type: 'password',
       placeholder: t('api_token_placeholder'),
     })),
 ];

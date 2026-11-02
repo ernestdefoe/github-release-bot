@@ -137,7 +137,10 @@ class WebhookTest extends TestCase
     {
         $this->setting('ernestdefoe-github-release-bot.bot_user_id', '999');
 
-        $this->assertSame(503, $this->deliver('release', $this->release('ridge'))->getStatusCode());
+        $response = $this->deliver('release', $this->release('ridge'));
+
+        $this->assertSame(503, $response->getStatusCode());
+        $this->assertSame(['error' => 'bot_user_not_found', 'user_id' => 999], json_decode((string) $response->getBody(), true));
         $this->assertSame(0, $this->replies());
     }
 
