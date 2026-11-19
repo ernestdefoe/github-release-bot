@@ -178,6 +178,24 @@ class WatcherTest extends TestCase
     }
 
     #[Test]
+    public function the_repository_cap_is_a_setting_that_cannot_be_switched_off()
+    {
+        $this->setting('ernestdefoe-github-release-bot.watch_map', json_encode(array_fill_keys(array_map(fn ($i) => "acme/r{$i}", range(1, 4)), 1)));
+        $this->setting('ernestdefoe-github-release-bot.watch_max_repos', '2');
+        $feed = fn (RequestInterface $req) => new Response(200, [], $this->feed('acme/x', '1.0.0'));
+
+        $r = $this->watcher($feed)->run();
+        $this->assertSame(2, $r['checked']);
+        $this->assertSame(2, $r['deferred']);
+
+        // 0 (or junk) is clamped to 1, never "no limit".
+        $this->app()->getContainer()->make(\Flarum\Settings\SettingsRepositoryInterface::class)
+            ->set('ernestdefoe-github-release-bot.watch_max_repos', '0');
+        $r = $this->watcher($feed)->run();
+        $this->assertSame(1, $r['checked']);
+    }
+
+    #[Test]
     public function a_failing_repository_is_retried_with_backoff_not_every_run()
     {
         $this->setting('ernestdefoe-github-release-bot.watch_map', json_encode(['acme/down' => 1]));

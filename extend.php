@@ -6,6 +6,12 @@ use ErnestDefoe\GitHubReleaseBot\Provider\HttpClientProvider;
 use Flarum\Extend;
 
 return [
+    /*
+     * A plain PSR-15 handler, not a JSON:API resource: GitHub posts its own
+     * payload format, and the HMAC signature must be checked against the raw
+     * body before anything parses it. It is a callback from GitHub, not a
+     * resource that forum clients list, read or edit.
+     */
     (new Extend\Routes('api'))
         ->post('/github-webhook', 'ernestdefoe.github-release-bot.webhook', HandleGitHubWebhookController::class),
 
@@ -13,6 +19,11 @@ return [
         ->exemptRoute('ernestdefoe.github-release-bot.webhook'),
 
     new Extend\Locales(__DIR__.'/locale'),
+
+    // Caps on one watch run; Watcher clamps them so the cap can't be removed.
+    (new Extend\Settings())
+        ->default('ernestdefoe-github-release-bot.watch_max_repos', 50)
+        ->default('ernestdefoe-github-release-bot.watch_time_budget', 10),
 
     /*
      * Watch mode: announce releases from repositories we do NOT own.

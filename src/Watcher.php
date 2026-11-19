@@ -37,17 +37,13 @@ class Watcher
     private const API = 'https://api.github.com/repos/%s/releases/tags/%s';
 
     /**
-     * At most this many repositories are checked per run, oldest check first,
-     * so a long watch list is covered over several runs instead of one.
+     * Admin settings `watch_max_repos` and `watch_time_budget` (minutes) cap a
+     * run: each repository can cost two requests of up to 15 s, so without a
+     * cap a slow GitHub could keep the worker busy past the next half-hourly
+     * slot. They are clamped here so a bad value can never remove the cap.
      */
-    private const MAX_REPOS_PER_RUN = 50;
-
-    /**
-     * Wall-clock budget for one run. Each repository can cost two requests of
-     * up to 15 s, so without a cap a slow GitHub could keep the worker busy
-     * past the next half-hourly slot. What is left over goes first next run.
-     */
-    private const TIME_BUDGET_SECONDS = 600;
+    private const MAX_REPOS_LIMIT = 500;
+    private const TIME_BUDGET_LIMIT_MINUTES = 25;
 
     /** A failing repository waits 30 min, 1 h, 2 h... up to a day between tries. */
     private const BACKOFF_MAX_MINUTES = 1440;
@@ -80,14 +76,17 @@ class Watcher
             ->keyBy('repo');
 
         $now = Carbon::now();
-        $deadline = $now->copy()->addSeconds(self::TIME_BUDGET_SECONDS);
+        $maxRepos = $this->clamp('ernestdefoe-github-release-bot.watch_max_repos', self::MAX_REPOS_LIMIT);
+        $deadline = $now->copy()->addMinutes(
+            $this->clamp('ernestdefoe-github-release-bot.watch_time_budget', self::TIME_BUDGET_LIMIT_MINUTES)
+        );
 
         foreach ($this->oldestFirst(array_keys($targets), $seen) as $repo) {
             $row = $seen->get($repo);
 
             if ($row && $this->backingOff($row, $now)) {
                 $result['details'][] = "{$repo}: skipped after {$row->failures} failed checks, retrying later";
-            } elseif ($result['checked'] >= self::MAX_REPOS_PER_RUN || Carbon::now()->greaterThanOrEqualTo($deadline)) {
+            } elseif ($result['checked'] >= $maxRepos || Carbon::now()->greaterThanOrEqualTo($deadline)) {
                 $result['deferred']++;
                 $result['details'][] = "{$repo}: not checked this run (limit reached), first in line next run";
             } else {
@@ -97,6 +96,12 @@ class Watcher
         }
 
         return $result;
+    }
+
+    /** A numeric setting held between 1 and $max. */
+    private function clamp(string $key, int $max): int
+    {
+        return max(1, min($max, (int) $this->settings->get($key)));
     }
 
     /**

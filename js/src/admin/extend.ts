@@ -35,6 +35,22 @@ export default [
       placeholder: '{"flarum/framework":50,"fof/upload":51}',
     }))
     .setting(() => ({
+      setting: 'ernestdefoe-github-release-bot.watch_max_repos',
+      label: t('watch_max_repos_label'),
+      help: t('watch_max_repos_help'),
+      type: 'number',
+      min: 1,
+      max: 500,
+    }))
+    .setting(() => ({
+      setting: 'ernestdefoe-github-release-bot.watch_time_budget',
+      label: t('watch_time_budget_label'),
+      help: t('watch_time_budget_help'),
+      type: 'number',
+      min: 1,
+      max: 25,
+    }))
+    .setting(() => ({
       setting: 'ernestdefoe-github-release-bot.api_token',
       label: t('api_token_label'),
       help: t('api_token_help'),
