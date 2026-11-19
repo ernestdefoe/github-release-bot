@@ -26,19 +26,18 @@ class HandleGitHubWebhookController implements RequestHandlerInterface
     {
         $secret = (string) $this->settings->get('ernestdefoe-github-release-bot.webhook_secret');
         $botUserId = (int) $this->settings->get('ernestdefoe-github-release-bot.bot_user_id');
-        $mapJson = (string) $this->settings->get('ernestdefoe-github-release-bot.repo_map');
+        $map = json_decode((string) $this->settings->get('ernestdefoe-github-release-bot.repo_map'), true);
 
-        if ($secret === '' || $botUserId <= 0 || $mapJson === '') {
+        if ($secret === '' || $botUserId <= 0 || ! is_array($map)) {
             return new JsonResponse(['error' => 'not_configured'], 503);
         }
 
         // Read raw body for signature verification (must be byte-for-byte
         // identical to what GitHub signed, so do this before any parsing).
         $body = (string) $request->getBody();
-        $sig = $request->getHeaderLine('X-Hub-Signature-256');
-
         $expected = 'sha256='.hash_hmac('sha256', $body, $secret);
-        if (! hash_equals($expected, $sig)) {
+
+        if (! hash_equals($expected, $request->getHeaderLine('X-Hub-Signature-256'))) {
             return new JsonResponse(['error' => 'invalid_signature'], 401);
         }
 
@@ -56,15 +55,15 @@ class HandleGitHubWebhookController implements RequestHandlerInterface
         }
 
         $repoName = $payload['repository']['name'] ?? null;
-        $release = $payload['release'] ?? [];
-
-        $map = json_decode($mapJson, true);
-        if (! is_array($map) || ! $repoName || ! isset($map[$repoName])) {
+        if (! $repoName || ! isset($map[$repoName])) {
             return new JsonResponse(['ignored' => 'repo_not_mapped', 'repo' => $repoName], 200);
         }
 
-        $discussionId = (int) $map[$repoName];
+        return $this->postRelease($request, $botUserId, (string) $repoName, (int) $map[$repoName], $payload['release'] ?? []);
+    }
 
+    private function postRelease(ServerRequestInterface $request, int $botUserId, string $repoName, int $discussionId, array $release): ResponseInterface
+    {
         try {
             $this->poster->post(
                 $botUserId,

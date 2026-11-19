@@ -39,12 +39,13 @@ class PollCommand extends AbstractCommand
         $r = $this->watcher->run($dryRun);
 
         $this->info(sprintf(
-            '%sChecked %d — posted %d, newly watched %d, failed %d.',
+            '%sChecked %d — posted %d, newly watched %d, failed %d, left for next run %d.',
             $dryRun ? '[dry run] ' : '',
             $r['checked'],
             $r['posted'],
             $r['adopted'],
-            $r['failed']
+            $r['failed'],
+            $r['deferred']
         ));
 
         foreach ($r['details'] as $line) {

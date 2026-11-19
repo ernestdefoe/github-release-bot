@@ -110,6 +110,19 @@ class WebhookTest extends TestCase
     }
 
     #[Test]
+    public function a_release_url_that_is_not_http_is_left_out_of_the_post()
+    {
+        $payload = $this->release('ridge');
+        $payload['release']['html_url'] = 'javascript:alert(document.cookie)';
+
+        $this->assertSame(200, $this->deliver('release', $payload)->getStatusCode());
+
+        $content = $this->database()->table('posts')->where('discussion_id', 1)->where('number', 2)->value('content');
+        $this->assertStringContainsString('Fixed the thing.', $content);
+        $this->assertStringNotContainsString('javascript:', $content);
+    }
+
+    #[Test]
     public function a_release_without_notes_says_so()
     {
         $this->deliver('release', $this->release('ridge', 'published', '   '));

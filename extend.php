@@ -2,6 +2,7 @@
 
 use ErnestDefoe\GitHubReleaseBot\Api\Controller\HandleGitHubWebhookController;
 use ErnestDefoe\GitHubReleaseBot\Console\PollCommand;
+use ErnestDefoe\GitHubReleaseBot\Provider\HttpClientProvider;
 use Flarum\Extend;
 
 return [
@@ -23,6 +24,9 @@ return [
      * Half-hourly: releases are not urgent enough to poll harder, and the feed
      * costs nothing either way.
      */
+    (new Extend\ServiceProvider())
+        ->register(HttpClientProvider::class),
+
     (new Extend\Console())
         ->command(PollCommand::class)
         ->schedule(PollCommand::class, function ($event) {

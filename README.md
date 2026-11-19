@@ -44,6 +44,9 @@ Watching needs Flarum's scheduler running (`php flarum schedule:run` from cron e
 
 - **A newly added repository is adopted silently.** Its current release is recorded and nothing is posted, so adding one never dumps an old release into a discussion. Only releases published after that are announced.
 - **Detection costs nothing.** The releases feed is public and doesn't count against GitHub's API rate limit. The API is called only to fetch the notes of a new release, and the unauthenticated limit of 60 an hour is plenty for that.
+- **Each run is capped.** A run checks at most 50 repositories and stops after 10 minutes, so a slow GitHub can't hold the worker past the next half-hourly run. Repositories it didn't reach are checked first next time.
+- **A failing repository backs off.** After repeated failures (a renamed repo, a timeout) it is retried after 30 minutes, then 1 hour, 2 hours and so on, up to once a day. One success resets it.
+- **Release links must be http(s).** A release URL that isn't a plain web link is left out of the post; the notes are still posted.
 - **Check it by hand:** `php flarum github-release-bot:poll --dry-run` reports what would be posted without posting anything.
 
 ## Good to know

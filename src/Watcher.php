@@ -4,8 +4,9 @@ namespace ErnestDefoe\GitHubReleaseBot;
 
 use Carbon\Carbon;
 use Flarum\Settings\SettingsRepositoryInterface;
-use GuzzleHttp\Client;
+use GuzzleHttp\ClientInterface;
 use Illuminate\Database\ConnectionInterface;
+use Illuminate\Support\Collection;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -35,69 +36,145 @@ class Watcher
     private const FEED = 'https://github.com/%s/releases.atom';
     private const API = 'https://api.github.com/repos/%s/releases/tags/%s';
 
+    /**
+     * At most this many repositories are checked per run, oldest check first,
+     * so a long watch list is covered over several runs instead of one.
+     */
+    private const MAX_REPOS_PER_RUN = 50;
+
+    /**
+     * Wall-clock budget for one run. Each repository can cost two requests of
+     * up to 15 s, so without a cap a slow GitHub could keep the worker busy
+     * past the next half-hourly slot. What is left over goes first next run.
+     */
+    private const TIME_BUDGET_SECONDS = 600;
+
+    /** A failing repository waits 30 min, 1 h, 2 h... up to a day between tries. */
+    private const BACKOFF_MAX_MINUTES = 1440;
+
     public function __construct(
         protected ConnectionInterface $db,
         protected SettingsRepositoryInterface $settings,
         protected ReleasePoster $poster,
         protected LoggerInterface $log,
+        protected ClientInterface $http,
     ) {
     }
 
-    /** @return array{checked:int, posted:int, adopted:int, failed:int, details:list<string>} */
+    /** @return array{checked:int, posted:int, adopted:int, failed:int, deferred:int, details:list<string>} */
     public function run(bool $dryRun = false): array
     {
-        $map = json_decode((string) $this->settings->get('ernestdefoe-github-release-bot.watch_map'), true);
         $botUserId = (int) $this->settings->get('ernestdefoe-github-release-bot.bot_user_id');
+        $targets = $this->targets();
 
-        $result = ['checked' => 0, 'posted' => 0, 'adopted' => 0, 'failed' => 0, 'details' => []];
+        $result = ['checked' => 0, 'posted' => 0, 'adopted' => 0, 'failed' => 0, 'deferred' => 0, 'details' => []];
 
-        if (! is_array($map) || $map === [] || $botUserId <= 0) {
+        if ($targets === [] || $botUserId <= 0) {
             return $result;
         }
 
-        $client = new Client([
-            'timeout' => 15,
-            'connect_timeout' => 8,
-            'headers' => [
-                // GitHub asks for an identifying agent and rejects requests without one.
-                'User-Agent' => 'flarum-github-release-bot',
-            ],
-        ]);
+        // One query for every repository's state, not one per repository.
+        $seen = $this->db->table('github_release_bot_seen')
+            ->whereIn('repo', array_keys($targets))
+            ->get()
+            ->keyBy('repo');
 
-        foreach ($map as $repo => $discussionId) {
-            $repo = trim((string) $repo);
-            $discussionId = (int) $discussionId;
+        $now = Carbon::now();
+        $deadline = $now->copy()->addSeconds(self::TIME_BUDGET_SECONDS);
 
-            if ($repo === '' || $discussionId <= 0 || ! str_contains($repo, '/')) {
-                continue;
-            }
+        foreach ($this->oldestFirst(array_keys($targets), $seen) as $repo) {
+            $row = $seen->get($repo);
 
-            $result['checked']++;
-
-            try {
-                $this->checkOne($client, $repo, $discussionId, $botUserId, $dryRun, $result);
-            } catch (Throwable $e) {
-                $result['failed']++;
-                $result['details'][] = "{$repo}: {$e->getMessage()}";
-                $this->recordFailure($repo, $e->getMessage());
-                $this->log->warning('[github-release-bot] watch failed', [
-                    'repo' => $repo, 'error' => $e->getMessage(),
-                ]);
+            if ($row && $this->backingOff($row, $now)) {
+                $result['details'][] = "{$repo}: skipped after {$row->failures} failed checks, retrying later";
+            } elseif ($result['checked'] >= self::MAX_REPOS_PER_RUN || Carbon::now()->greaterThanOrEqualTo($deadline)) {
+                $result['deferred']++;
+                $result['details'][] = "{$repo}: not checked this run (limit reached), first in line next run";
+            } else {
+                $result['checked']++;
+                $this->checkSafely($repo, $targets[$repo], $row, $botUserId, $dryRun, $result);
             }
         }
 
         return $result;
     }
 
+    /**
+     * The watch map's usable entries, `owner/repo` => discussion id.
+     *
+     * @return array<string, int>
+     */
+    private function targets(): array
+    {
+        $map = json_decode((string) $this->settings->get('ernestdefoe-github-release-bot.watch_map'), true);
+        $targets = [];
+
+        foreach (is_array($map) ? $map : [] as $repo => $discussionId) {
+            $repo = trim((string) $repo);
+
+            if ($repo !== '' && (int) $discussionId > 0 && str_contains($repo, '/')) {
+                $targets[$repo] = (int) $discussionId;
+            }
+        }
+
+        return $targets;
+    }
+
+    /**
+     * Never-checked first, then the longest-unchecked, so the repositories a
+     * capped run left out are the first ones the next run reaches.
+     *
+     * @param list<string> $repos
+     * @return list<string>
+     */
+    private function oldestFirst(array $repos, Collection $seen): array
+    {
+        usort($repos, fn (string $a, string $b) => strcmp(
+            (string) ($seen->get($a)->last_checked_at ?? ''),
+            (string) ($seen->get($b)->last_checked_at ?? '')
+        ));
+
+        return $repos;
+    }
+
+    /** One repository; a failure is logged and counted, and never stops the run. */
+    private function checkSafely(string $repo, int $discussionId, ?object $row, int $botUserId, bool $dryRun, array &$result): void
+    {
+        try {
+            $this->checkOne($repo, $discussionId, $row, $botUserId, $dryRun, $result);
+        } catch (Throwable $e) {
+            $result['failed']++;
+            $result['details'][] = "{$repo}: {$e->getMessage()}";
+            $this->recordFailure($repo, (int) ($row->failures ?? 0), $e->getMessage());
+            $this->log->warning('[github-release-bot] watch failed', [
+                'repo' => $repo, 'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /** A repository that keeps failing is retried less often, not every run. */
+    private function backingOff(object $row, Carbon $now): bool
+    {
+        $failures = (int) ($row->failures ?? 0);
+
+        if ($failures <= 0 || empty($row->last_checked_at)) {
+            return false;
+        }
+
+        $wait = min(30 * (2 ** min($failures - 1, 6)), self::BACKOFF_MAX_MINUTES);
+
+        return Carbon::parse($row->last_checked_at)->addMinutes($wait)->greaterThan($now);
+    }
+
     private function checkOne(
-        Client $client,
         string $repo,
         int $discussionId,
+        ?object $seen,
         int $botUserId,
         bool $dryRun,
         array &$result
     ): void {
-        $xml = (string) $client->get(sprintf(self::FEED, $repo))->getBody();
+        $xml = (string) $this->http->request('GET', sprintf(self::FEED, $repo))->getBody();
 
         $latest = $this->newestEntry($xml);
 
@@ -109,17 +186,10 @@ class Watcher
             return;
         }
 
-        $seen = $this->db->table('github_release_bot_seen')->where('repo', $repo)->first();
-
-        /*
-         * 🚨 First sight adopts, it does not announce.
-         *
-         * Without this, adding a repository to the watch list would post its
-         * entire release history — or at least its newest release, which may be
-         * years old — into a discussion as though it had just happened. The
-         * first poll simply records where we came in.
-         */
-        if (! $seen) {
+        // 🚨 First sight adopts, it does not announce: otherwise adding a repo
+        // would post its newest release, maybe years old, as if it were new.
+        // A row left only by failed checks has never seen a release: also first sight.
+        if (! $seen || ($seen->last_release_id === null && (int) $seen->failures > 0)) {
             $this->touch($repo, $latest['id'], $latest['tag'], posted: false);
             $result['adopted']++;
             $result['details'][] = "{$repo}: now watching from {$latest['tag']} (nothing posted)";
@@ -139,19 +209,23 @@ class Watcher
             return;
         }
 
-        $notes = $this->notes($client, $repo, $latest['tag']);
+        $this->announce($repo, $discussionId, $botUserId, $latest);
+        $result['posted']++;
+        $result['details'][] = "{$repo}: posted {$latest['tag']} to discussion {$discussionId}";
+    }
 
+    /** @param array{id:string, tag:string, url:string} $latest */
+    private function announce(string $repo, int $discussionId, int $botUserId, array $latest): void
+    {
         $this->poster->post(
             $botUserId,
             $discussionId,
             trim(basename($repo).' '.$latest['tag']),
-            $notes,
+            $this->notes($repo, $latest['tag']),
             $latest['url']
         );
 
         $this->touch($repo, $latest['id'], $latest['tag'], posted: true);
-        $result['posted']++;
-        $result['details'][] = "{$repo}: posted {$latest['tag']} to discussion {$discussionId}";
     }
 
     /**
@@ -206,7 +280,7 @@ class Watcher
     }
 
     /** The release body in its original markdown, or a fallback line. */
-    private function notes(Client $client, string $repo, string $tag): string
+    private function notes(string $repo, string $tag): string
     {
         if ($tag === '') {
             return '';
@@ -223,7 +297,7 @@ class Watcher
                 $headers['Authorization'] = 'Bearer '.$token;
             }
 
-            $res = $client->get(sprintf(self::API, $repo, rawurlencode($tag)), ['headers' => $headers]);
+            $res = $this->http->request('GET', sprintf(self::API, $repo, rawurlencode($tag)), ['headers' => $headers]);
             $body = json_decode((string) $res->getBody(), true);
 
             return is_array($body) ? trim((string) ($body['body'] ?? '')) : '';
@@ -258,13 +332,11 @@ class Watcher
         $this->db->table('github_release_bot_seen')->updateOrInsert(['repo' => $repo], $row);
     }
 
-    private function recordFailure(string $repo, string $message): void
+    private function recordFailure(string $repo, int $failures, string $message): void
     {
-        $existing = $this->db->table('github_release_bot_seen')->where('repo', $repo)->first();
-
         $this->db->table('github_release_bot_seen')->updateOrInsert(['repo' => $repo], [
             'last_checked_at' => Carbon::now(),
-            'failures' => (int) ($existing->failures ?? 0) + 1,
+            'failures' => min($failures + 1, 65535),
             'last_error' => mb_substr($message, 0, 255),
         ]);
     }

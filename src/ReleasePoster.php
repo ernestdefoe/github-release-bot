@@ -6,7 +6,6 @@ use Carbon\Carbon;
 use Flarum\Discussion\Discussion;
 use Flarum\Locale\TranslatorInterface;
 use Flarum\Post\CommentPost;
-use Flarum\User\User;
 use Flarum\User\UserRepository;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
@@ -49,7 +48,7 @@ class ReleasePoster
 
         $content = "## {$heading}\n\n{$notes}";
 
-        if ($url !== '') {
+        if ($this->isWebUrl($url)) {
             $content .= "\n\n[".$this->translator->trans('ernestdefoe-github-release-bot.forum.post.view_release')."]({$url})";
         }
 
@@ -72,5 +71,18 @@ class ReleasePoster
         $discussion->save();
 
         return $post;
+    }
+
+    /**
+     * Only a plain http(s) URL becomes the link. The URL comes from a webhook
+     * payload or a feed, so a `javascript:` URI, or one with whitespace or
+     * brackets that would break out of the Markdown link, is dropped and the
+     * post goes out without it.
+     */
+    private function isWebUrl(string $url): bool
+    {
+        return in_array(strtolower((string) parse_url($url, PHP_URL_SCHEME)), ['http', 'https'], true)
+            && (string) parse_url($url, PHP_URL_HOST) !== ''
+            && ! preg_match('/[\s()<>\[\]]/', $url);
     }
 }
